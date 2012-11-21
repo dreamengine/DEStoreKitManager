@@ -5,6 +5,8 @@
 
 `DEStoreKitManager` is an MIT-licensed library that streamlines iOS In-App Purchases. It automatically takes care of the IAP boilerplate for you so you can concentrate on shipping and on making better products.
 
+`DEStoreKitManager` is designed to be as flexible and lightweight to use as possible. For each product fetch or purchase, you can have a different delegate, and each delegate will be notified only about the fetch/purchase it initiated. You can have multiple delegates simultaneously doing any number of fetches and/or purchases without worry of sorting out which delegate is responsible for what.
+
 
 ## Product Fetching
 
