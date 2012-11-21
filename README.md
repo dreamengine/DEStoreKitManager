@@ -14,9 +14,7 @@ To fetch a list of products, simply have your delegate object adhere to the `DES
 
 You can have as many simultaneous product fetches going as you'd like (though we recommend doing fewer fetches with more product identifiers in each fetch).
 
-`DEStoreKitManager` automatically caches the products you've received in memory, so you don't need to keep track of the individual `SKProducts`.
-
-If you'd rather not use the automatic product caching and you'd prefer to keep track of the products yourself, then you can use `fetchProductsWithIdentifier:delegate:cacheResult:` and pass `NO` for the last parameter. Then, when the product is to be purchased, simply use `purchaseProduct:delegate:` instead of `purchaseProductWithIdentifier:delegate:`.
+`DEStoreKitManager` automatically caches the products you've received in memory, so you don't need to keep track of the individual `SKProducts`. If you'd rather not use the automatic product caching and you'd prefer to keep track of the products yourself, then you can use `fetchProductsWithIdentifier:delegate:cacheResult:` and pass `NO` for the last parameter. Then, when the product is to be purchased, simply use `purchaseProduct:delegate:` instead of `purchaseProductWithIdentifier:delegate:`.
 
 ### Example
 
