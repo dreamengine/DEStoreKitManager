@@ -61,7 +61,7 @@ You can have as many simultaneous product fetches going as you'd like (though we
 
 ## Product Purchasing (Transactions)
 
-To purchase a product, have your delegate implement the following methods: `transactionSucceeded:`, `transactionRestored:` (optional), `transactionFailed:`, and `transactionCanceled:` (optional). Then, use `DEStoreKitManager` to initiate the transaction.
+To purchase a product, have your delegate implement the following methods: `transactionSucceeded:`, `transactionRestored:` (optional), `transactionFailed:`, and `transactionCanceled:` (optional). Then, use `DEStoreKitManager` to initiate the transaction. Just as with the product fetching, you can have as many simultaneous transaction as you want.
 
 If `transactionRestored:` is not implemented in your delegate, then a restored purchase will be sent instead to `transactionSucceeded:`. Similarly, if `transactionCanceled:` is not implemented, then `transacitonFailed:` will be called instead if the user cancels the purchase.
 
