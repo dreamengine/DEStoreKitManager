@@ -42,7 +42,7 @@ To purchase a product, simply use `purchaseProduct:onSuccess:onRestore:onFailure
 
 `DEStoreKitManager` does not force you to adhere to a specific receipt verification procedure. Instead, the `verify` block is responsible for verification. Once your procedure has determined the validity of the receipt/transaction, you are responsible for calling `transaction:didVerify:` in `DEStoreKitManager`, which will then call your `success`, `restore`, or `failure` block depending on the what was passed into `DEStoreKitManager` as well as the state of the transaction itself.
 
-Note that `DEStoreKitManager` has built-in conveniences if you choose to pass in `nil` for certain blocks:
+`DEStoreKitManager` has built-in conveniences if you choose to pass in `nil` for certain blocks:
 
 * If you pass in `nil` for your `verify` block, then `DEStoreKitManager` will not attempt to verify your receipt and will instead automatically complete the transaction.
 * If you pass in `nil` for your `restore` block, then `DEStoreKitManager` will instead call your `success` block if the transaction should be restored.
