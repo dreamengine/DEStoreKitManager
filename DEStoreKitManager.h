@@ -47,11 +47,11 @@
 // restored transaction can be treated identically to a successful transaction.
 -(void) transactionRestored: (SKPaymentTransaction *)transaction;
 
+-(void) transactionFailed: (SKPaymentTransaction *)transaction;
+
 // If a transaction was canceled but the delegate does not implement transactionCanceled:,
 // then DEStoreKitManager will instead call transactionFailed:.
 -(void) transactionCanceled: (SKPaymentTransaction *)transaction;
-
--(void) transactionFailed: (SKPaymentTransaction *)transaction;
 
 /*
  Provides a delegate an opportunity to verify the receipt of a completed or restored transaction. If
@@ -96,6 +96,23 @@
                             delegate: (id<DEStoreKitManagerDelegate>) delegate
                          cacheResult: (BOOL)shouldCache;
 
+#ifdef __BLOCKS__
+
+
+/*
+ Use these if you'd prefer not to use the delegation pattern
+ */
+-(void) fetchProductsWithIdentifiers: (NSSet *)productIdentifiers
+                           onSuccess: (void (^)(NSArray *products, NSArray *invalidIdentifiers))success
+                           onFailure: (void (^)(NSError *error))failure;
+
+-(void) fetchProductsWithIdentifiers: (NSSet *)productIdentifiers
+                           onSuccess: (void (^)(NSArray *products, NSArray *invalidIdentifiers))success
+                           onFailure: (void (^)(NSError *error))failure
+                         cacheResult: (BOOL)shouldCache;
+
+#endif
+
 
 /*
  Attempts to purchase a product with matching productIdentifier.
@@ -113,6 +130,27 @@
 
 -(void) purchaseProduct: (SKProduct *)product
                delegate: (id<DEStoreKitManagerDelegate>) delegate;
+
+#ifdef __BLOCKS__
+
+/*
+ Use these if you'd prefer not to use the delegation pattern.
+ */
+-(BOOL) purchaseProductWithIdentifier: (NSString *)productIdentifier
+                            onSuccess: (void (^)(SKPaymentTransaction *transaction))success
+                            onRestore: (void (^)(SKPaymentTransaction *transaction))restore
+                            onFailure: (void (^)(SKPaymentTransaction *transaction))failure
+                             onCancel: (void (^)(SKPaymentTransaction *transaction))cancel
+                             onVerify: (void (^)(SKPaymentTransaction *transaction))verify;
+
+-(void) purchaseProduct: (SKProduct *)product
+              onSuccess: (void (^)(SKPaymentTransaction *transaction))success
+              onRestore: (void (^)(SKPaymentTransaction *transaction))restore
+              onFailure: (void (^)(SKPaymentTransaction *transaction))failure
+               onCancel: (void (^)(SKPaymentTransaction *transaction))cancel
+               onVerify: (void (^)(SKPaymentTransaction *transaction))verify;
+
+#endif
 
 
 /*
