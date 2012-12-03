@@ -112,6 +112,7 @@ typedef void (^DEStoreKitProductsFetchHandlerFailureBlock)(NSError *error);
     self.storeKitManager = nil;
     self.delegate = nil;
     self.request.delegate = nil;
+    [self.request cancel];
 
 #ifdef __BLOCKS__
     self.successBlock = nil;
@@ -147,7 +148,10 @@ typedef void (^DEStoreKitProductsFetchHandlerFailureBlock)(NSError *error);
 #endif
 
     self.request.delegate = nil;
-    [self.storeKitManager productsFetchHandlerDidFinish:self];
+    [self.request cancel];
+    [self.storeKitManager performSelector: @selector(productsFetchHandlerDidFinish:)
+                               withObject: self
+                               afterDelay: 2.f];    // need to perform after delay because, in iOS 6, SKProductsRequest erroneously keeps a record of the delegate and attempts to call it.
 }
 
 - (void)request:(SKRequest *)request didFailWithError:(NSError *)error {
@@ -161,6 +165,7 @@ typedef void (^DEStoreKitProductsFetchHandlerFailureBlock)(NSError *error);
 #endif
 
     self.request.delegate = nil;
+    [self.request cancel];
     [self.storeKitManager productsFetchHandlerDidFinish:self];
 }
 
