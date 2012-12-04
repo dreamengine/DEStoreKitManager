@@ -29,6 +29,32 @@
 
 
 
+//**************************************************
+//
+// SKProduct category methods
+//
+//**************************************************
+@implementation SKProduct (DEStoreKitManager)
+
+-(NSString *) localizedPrice {
+    NSNumberFormatter *numberFormatter = [[NSNumberFormatter alloc] init];
+    [numberFormatter setFormatterBehavior:NSNumberFormatterBehavior10_4];
+    [numberFormatter setNumberStyle:NSNumberFormatterCurrencyStyle];
+    [numberFormatter setLocale:self.priceLocale];
+    NSString *formattedString = [numberFormatter stringFromNumber:self.price];
+    [numberFormatter release];
+    return formattedString;
+}
+
+@end
+
+
+
+
+
+
+
+
 
 
 //**************************************************
@@ -445,6 +471,15 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
 
 
 #pragma mark - Cache
+
+-(SKProduct *)cachedProductWithIdentifier:(NSString *)productIdentifier {
+    for (SKProduct *product in self.cachedProducts) {
+        if ([product.productIdentifier isEqualToString:productIdentifier]) {
+            return product;
+        }
+    }
+    return nil;
+}
 
 -(void) addProductsToCache:(NSSet *)products {
     NSSet *newCache = [self.cachedProducts setByAddingObjectsFromSet:products];

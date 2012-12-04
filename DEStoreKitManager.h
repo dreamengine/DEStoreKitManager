@@ -30,6 +30,17 @@
 #import <StoreKit/StoreKit.h>
 
 
+@interface SKProduct (DEStoreKitManager)
+
+-(NSString *) localizedPrice;
+
+@end
+
+
+
+
+
+
 @protocol DEStoreKitManagerDelegate <NSObject>
 
 @optional
@@ -82,6 +93,9 @@
 +(id)sharedManager;
 
 -(BOOL) canMakePurchases;
+
+// returns nil if product not found
+-(SKProduct *)cachedProductWithIdentifier:(NSString *)productIdentifier;
 
 -(void) removeProductsFromCache:(NSSet *)products;
 -(void) removeAllProductsFromCache;
