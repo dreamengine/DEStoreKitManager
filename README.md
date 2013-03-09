@@ -33,7 +33,7 @@ If you'd rather not use the automatic product caching feature, then you can use 
 		onFailure: ^(NSError *error) {
 			// handle failure here.
 		}
-	}];
+	];
 
 
 ### Product Purchasing (Transactions)
