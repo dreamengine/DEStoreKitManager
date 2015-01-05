@@ -67,8 +67,8 @@
 @class DEStoreKitTransactionHandler;
 @interface DEStoreKitManager ()
 
-@property (nonatomic, retain) NSMutableSet *productsFetchHandlers;
-@property (nonatomic, retain) NSMutableSet *transactionHandlers;
+@property (nonatomic, strong) NSMutableSet *productsFetchHandlers;
+@property (nonatomic, strong) NSMutableSet *transactionHandlers;
 
 -(void) addProductsToCache:(NSSet *)products;
 
