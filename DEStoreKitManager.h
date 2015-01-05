@@ -29,6 +29,11 @@
 
 #import <StoreKit/StoreKit.h>
 
+typedef void (^DEStoreKitProductsFetchSuccessBlock)(NSArray *products, NSArray *invalidIdentifiers);
+typedef void (^DEStoreKitErrorBlock)(NSError *error);
+typedef void (^DEStoreKitTransactionBlock)(SKPaymentTransaction *transaction);
+
+
 
 @interface SKProduct (DEStoreKitManager)
 
@@ -110,22 +115,18 @@
                             delegate: (id<DEStoreKitManagerDelegate>) delegate
                          cacheResult: (BOOL)shouldCache;
 
-#ifdef __BLOCKS__
-
 
 /*
  Use these if you'd prefer not to use the delegation pattern
  */
 -(void) fetchProductsWithIdentifiers: (NSSet *)productIdentifiers
-                           onSuccess: (void (^)(NSArray *products, NSArray *invalidIdentifiers))success
-                           onFailure: (void (^)(NSError *error))failure;
+                           onSuccess: (DEStoreKitProductsFetchSuccessBlock)success
+                           onFailure: (DEStoreKitErrorBlock)failure;
 
 -(void) fetchProductsWithIdentifiers: (NSSet *)productIdentifiers
-                           onSuccess: (void (^)(NSArray *products, NSArray *invalidIdentifiers))success
-                           onFailure: (void (^)(NSError *error))failure
+                           onSuccess: (DEStoreKitProductsFetchSuccessBlock)success
+                           onFailure: (DEStoreKitErrorBlock)failure
                          cacheResult: (BOOL)shouldCache;
-
-#endif
 
 
 /*
@@ -145,26 +146,22 @@
 -(void) purchaseProduct: (SKProduct *)product
                delegate: (id<DEStoreKitManagerDelegate>) delegate;
 
-#ifdef __BLOCKS__
-
 /*
  Use these if you'd prefer not to use the delegation pattern.
  */
 -(BOOL) purchaseProductWithIdentifier: (NSString *)productIdentifier
-                            onSuccess: (void (^)(SKPaymentTransaction *transaction))success
-                            onRestore: (void (^)(SKPaymentTransaction *transaction))restore
-                            onFailure: (void (^)(SKPaymentTransaction *transaction))failure
-                             onCancel: (void (^)(SKPaymentTransaction *transaction))cancel
-                             onVerify: (void (^)(SKPaymentTransaction *transaction))verify;
+                            onSuccess: (DEStoreKitTransactionBlock)success
+                            onRestore: (DEStoreKitTransactionBlock)restore
+                            onFailure: (DEStoreKitTransactionBlock)failure
+                             onCancel: (DEStoreKitTransactionBlock)cancel
+                             onVerify: (DEStoreKitTransactionBlock)verify;
 
 -(void) purchaseProduct: (SKProduct *)product
-              onSuccess: (void (^)(SKPaymentTransaction *transaction))success
-              onRestore: (void (^)(SKPaymentTransaction *transaction))restore
-              onFailure: (void (^)(SKPaymentTransaction *transaction))failure
-               onCancel: (void (^)(SKPaymentTransaction *transaction))cancel
-               onVerify: (void (^)(SKPaymentTransaction *transaction))verify;
-
-#endif
+              onSuccess: (DEStoreKitTransactionBlock)success
+              onRestore: (DEStoreKitTransactionBlock)restore
+              onFailure: (DEStoreKitTransactionBlock)failure
+               onCancel: (DEStoreKitTransactionBlock)cancel
+               onVerify: (DEStoreKitTransactionBlock)verify;
 
 
 /*
