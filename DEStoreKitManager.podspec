@@ -10,12 +10,12 @@ Pod::Spec.new do |s|
 
   s.author             = { "Dream Engine" => "contact@dreamengine.com" }
 
-  s.platform     = :ios
+  s.platform     = :ios, '7.0'
 
-  s.source       = { :git => "https://github.com/dreamengine/DEStoreKitManager.git", :commit => "4088e37118a8a394fde99c2d7f44290cd20d5e15" }
+  s.source       = { :git => "https://github.com/dreamengine/DEStoreKitManager.git", :tag => "0.1" }
 
   s.source_files  = "DEStoreKitManager.{h,m}"
 
-  s.requires_arc = false
+  s.requires_arc = true
 
 end
