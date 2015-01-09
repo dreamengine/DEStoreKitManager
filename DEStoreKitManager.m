@@ -42,7 +42,6 @@
     [numberFormatter setNumberStyle:NSNumberFormatterCurrencyStyle];
     [numberFormatter setLocale:self.priceLocale];
     NSString *formattedString = [numberFormatter stringFromNumber:self.price];
-    [numberFormatter release];
     return formattedString;
 }
 
@@ -66,16 +65,20 @@
 
 @class DEStoreKitProductsFetchHandler;
 @class DEStoreKitTransactionHandler;
+@class DEStoreKitRestorationHandler;
 @interface DEStoreKitManager ()
 
-@property (nonatomic, retain) NSMutableSet *productsFetchHandlers;
-@property (nonatomic, retain) NSMutableSet *transactionHandlers;
+@property (nonatomic, strong) NSMutableArray *productsFetchHandlers;
+@property (nonatomic, strong) NSMutableArray *transactionHandlers;
+@property (nonatomic, strong) DEStoreKitRestorationHandler *restorationHandler;
 
--(void) addProductsToCache:(NSSet *)products;
+-(void) addProductsToCache:(NSArray *)products;
 
 -(void) productsFetchHandlerDidFinish:(DEStoreKitProductsFetchHandler *)handler;
 
 -(void) transactionHandlerDidFinish:(DEStoreKitTransactionHandler *)handler;
+
+-(void) restorationHandlerDidFinish:(DEStoreKitRestorationHandler *)handler;
 
 @end
 
@@ -95,24 +98,17 @@
 //**************************************************
 #pragma mark - Products Fetch Handler
 
-#ifdef __BLOCKS__
-typedef void (^DEStoreKitProductsFetchHandlerSuccessBlock)(NSArray *products, NSArray *invalidIdentifiers);
-typedef void (^DEStoreKitProductsFetchHandlerFailureBlock)(NSError *error);
-#endif
-
 @interface DEStoreKitProductsFetchHandler : NSObject <SKProductsRequestDelegate>
 
 @property (nonatomic) BOOL shouldCache;
-@property (nonatomic, retain) NSSet *productIdentifiers;
-@property (nonatomic, assign) DEStoreKitManager *storeKitManager;
-@property (nonatomic, assign) id<DEStoreKitManagerDelegate> delegate;
+@property (nonatomic, strong) NSArray *productIdentifiers;
+@property (nonatomic, weak) DEStoreKitManager *storeKitManager;
+@property (nonatomic, weak) id<DEStoreKitManagerDelegate> delegate;
 
-#ifdef __BLOCKS__
-@property (nonatomic, copy) DEStoreKitProductsFetchHandlerSuccessBlock successBlock;
-@property (nonatomic, copy) DEStoreKitProductsFetchHandlerFailureBlock failureBlock;
-#endif
+@property (nonatomic, copy) DEStoreKitProductsFetchSuccessBlock successBlock;
+@property (nonatomic, copy) DEStoreKitErrorBlock failureBlock;
 
-@property (nonatomic, retain) SKProductsRequest *request;
+@property (nonatomic, strong) SKProductsRequest *request;
 
 -(void) fetch;
 
@@ -126,39 +122,21 @@ typedef void (^DEStoreKitProductsFetchHandlerFailureBlock)(NSError *error);
 @synthesize storeKitManager = storeKitManager_;
 @synthesize delegate = delegate_;
 
-#ifdef __BLOCKS__
 @synthesize successBlock = successBlock_;
 @synthesize failureBlock = failureBlock_;
-#endif
 
 @synthesize request = request_;
 
--(void) dealloc {
-    self.productIdentifiers = nil;
-    self.storeKitManager = nil;
-    self.delegate = nil;
-    self.request.delegate = nil;
-    [self.request cancel];
-
-#ifdef __BLOCKS__
-    self.successBlock = nil;
-    self.failureBlock = nil;
-#endif
-
-    self.request = nil;
-
-    [super dealloc];
-}
 
 -(void) fetch {
-    self.request = [[[SKProductsRequest alloc] initWithProductIdentifiers:self.productIdentifiers] autorelease];
+    self.request = [[SKProductsRequest alloc] initWithProductIdentifiers:[NSSet setWithArray:self.productIdentifiers]];
     self.request.delegate = self;
     [self.request start];
 }
 
 - (void)productsRequest: (SKProductsRequest *)request
      didReceiveResponse: (SKProductsResponse *)response {
-    NSSet *fetchedProducts = [NSSet setWithArray:response.products];
+    NSArray *fetchedProducts = response.products;
     if (self.shouldCache) {
         [self.storeKitManager addProductsToCache:fetchedProducts];
     }
@@ -167,11 +145,9 @@ typedef void (^DEStoreKitProductsFetchHandlerFailureBlock)(NSError *error);
         [self.delegate productsFetched: response.products
                     invalidIdentifiers: response.invalidProductIdentifiers];
     }
-#ifdef __BLOCKS__
     else if (self.successBlock) {
         self.successBlock(response.products, response.invalidProductIdentifiers);
     }
-#endif
 
     self.request.delegate = nil;
     [self.request cancel];
@@ -184,11 +160,9 @@ typedef void (^DEStoreKitProductsFetchHandlerFailureBlock)(NSError *error);
     if (self.delegate && [self.delegate respondsToSelector:@selector(productsFetchFailed:)]) {
         [self.delegate productsFetchFailed:error];
     }
-#ifdef __BLOCKS__
     else if (self.failureBlock) {
         self.failureBlock(error);
     }
-#endif
 
     self.request.delegate = nil;
     [self.request cancel];
@@ -213,29 +187,19 @@ typedef void (^DEStoreKitProductsFetchHandlerFailureBlock)(NSError *error);
 //**************************************************
 #pragma mark - Transaction Handler
 
-#ifdef __BLOCKS__
-typedef void (^DEStoreKitTransactionHandlerSuccessBlock)(SKPaymentTransaction *transaction);
-typedef void (^DEStoreKitTransactionHandlerRestoreBlock)(SKPaymentTransaction *transaction);
-typedef void (^DEStoreKitTransactionHandlerFailureBlock)(SKPaymentTransaction *transaction);
-typedef void (^DEStoreKitTransactionHandlerCancelBlock)(SKPaymentTransaction *transaction);
-typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *transaction);
-#endif
-
 @interface DEStoreKitTransactionHandler : NSObject <SKPaymentTransactionObserver>
 
-@property (nonatomic, retain) SKProduct *product;
-@property (nonatomic, assign) DEStoreKitManager *storeKitManager;
-@property (nonatomic, assign) id<DEStoreKitManagerDelegate> delegate;
+@property (nonatomic, strong) SKProduct *product;
+@property (nonatomic, weak) DEStoreKitManager *storeKitManager;
+@property (nonatomic, weak) id<DEStoreKitManagerDelegate> delegate;
 
-#ifdef __BLOCKS__
-@property (nonatomic, copy) DEStoreKitTransactionHandlerSuccessBlock successBlock;
-@property (nonatomic, copy) DEStoreKitTransactionHandlerRestoreBlock restoreBlock;
-@property (nonatomic, copy) DEStoreKitTransactionHandlerFailureBlock failureBlock;
-@property (nonatomic, copy) DEStoreKitTransactionHandlerCancelBlock cancelBlock;
-@property (nonatomic, copy) DEStoreKitTransactionHandlerFailureBlock verifyBlock;
-#endif
+@property (nonatomic, copy) DEStoreKitTransactionBlock successBlock;
+@property (nonatomic, copy) DEStoreKitTransactionBlock restoreBlock;
+@property (nonatomic, copy) DEStoreKitTransactionBlock failureBlock;
+@property (nonatomic, copy) DEStoreKitTransactionBlock cancelBlock;
+@property (nonatomic, copy) DEStoreKitTransactionBlock verifyBlock;
 
-@property (nonatomic, retain) SKPayment *payment;
+@property (nonatomic, strong) SKPayment *payment;
 
 -(void) purchase;
 
@@ -259,35 +223,13 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
 @synthesize storeKitManager = storeKitManager_;
 @synthesize delegate = delegate_;
 
-#ifdef __BLOCKS__
 @synthesize successBlock = successBlock_;
 @synthesize restoreBlock = restoreBlock_;
 @synthesize failureBlock = failureBlock_;
 @synthesize cancelBlock = cancelBlock_;
 @synthesize verifyBlock = verifyBlock_;
-#endif
 
 @synthesize payment = payment_;
-
--(void) dealloc {
-    [[SKPaymentQueue defaultQueue] removeTransactionObserver:self];
-
-    self.product = nil;
-    self.storeKitManager = nil;
-    self.delegate = nil;
-
-#ifdef __BLOCKS__
-    self.successBlock = nil;
-    self.restoreBlock = nil;
-    self.failureBlock = nil;
-    self.cancelBlock = nil;
-    self.verifyBlock = nil;
-#endif
-
-    self.payment = nil;
-    
-    [super dealloc];
-}
 
 -(void) purchase {
     [[SKPaymentQueue defaultQueue] addTransactionObserver:self];
@@ -307,11 +249,9 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
                     if (self.delegate && [self.delegate respondsToSelector:@selector(transactionNeedsVerification:)]) {
                         [self.delegate transactionNeedsVerification:transaction];
                     }
-#ifdef __BLOCKS__
                     else if (self.verifyBlock) {
                         self.verifyBlock(transaction);
                     }
-#endif
                     else {
                         [self finishTransaction:transaction wasSuccessful:YES];
                     }
@@ -345,24 +285,20 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
             else if (self.delegate && [self.delegate respondsToSelector:@selector(transactionSucceeded:)]) {
                 [self.delegate transactionSucceeded:transaction];
             }
-#ifdef __BLOCKS__
             else if (self.restoreBlock) {
                 self.restoreBlock(transaction);
             }
             else if (self.successBlock) {
                 self.successBlock(transaction);
             }
-#endif
         }
         else {
             if (self.delegate && [self.delegate respondsToSelector:@selector(transactionSucceeded:)]) {
                 [self.delegate transactionSucceeded:transaction];
             }
-#ifdef __BLOCKS__
             else if (self.successBlock) {
                 self.successBlock(transaction);
             }
-#endif
         }
     }
     else {
@@ -373,24 +309,20 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
             else if (self.delegate && [self.delegate respondsToSelector:@selector(transactionFailed:)]) {
                 [self.delegate transactionFailed:transaction];
             }
-#ifdef __BLOCKS__
             else if (self.cancelBlock) {
                 self.cancelBlock(transaction);
             }
             else if (self.failureBlock) {
                 self.failureBlock(transaction);
             }
-#endif
         }
         else {
             if (self.delegate && [self.delegate respondsToSelector:@selector(transactionFailed:)]) {
                 [self.delegate transactionFailed:transaction];
             }
-#ifdef __BLOCKS__
             else if (self.failureBlock) {
                 self.failureBlock(transaction);
             }
-#endif
         }
     }
 
@@ -405,7 +337,171 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
 
 
 
+//**************************************************
+//
+// Restoration Handler
+//
+//**************************************************
+#pragma mark - Restoration Handler
 
+typedef void (^DEStoreKitRestorationHandlerSuccessBlock)(NSArray *restoredTransactions, NSArray *failedTransactions);
+typedef void (^DEStoreKitRestorationHandlerFailureBlock)(NSError *error);
+typedef void (^DEStoreKitRestorationHandlerVerifyBlock)(NSArray *transactions);
+
+
+
+
+@interface DEStoreKitRestorationHandler : NSObject <SKPaymentTransactionObserver>
+
+@property (nonatomic, weak) DEStoreKitManager *storeKitManager;
+@property (nonatomic, weak) id<DEStoreKitManagerDelegate> delegate;
+
+@property (nonatomic, strong) NSMutableArray *restoredTransactions;
+
+@property (nonatomic, copy) DEStoreKitRestorationHandlerSuccessBlock successBlock;
+@property (nonatomic, copy) DEStoreKitRestorationHandlerFailureBlock failureBlock;
+@property (nonatomic, copy) DEStoreKitRestorationHandlerVerifyBlock verifyBlock;
+
+-(void) restore;
+
+-(void) transaction:(SKPaymentTransaction *)transaction
+          didVerify:(BOOL)isValid;
+
+@end
+
+
+
+@interface DEStoreKitRestorationHandler ()
+
+@property (nonatomic, strong) NSMutableArray *verifiedTransactions;
+@property (nonatomic, strong) NSMutableArray *invalidTransactions;
+
+-(void) finishTransaction: (SKPaymentTransaction *)transaction
+            wasSuccessful: (BOOL)wasSuccessful;
+
+-(void) transactionsDidFinish;
+
+@end
+
+
+
+@implementation DEStoreKitRestorationHandler
+
+@synthesize storeKitManager = storeKitManager_;
+@synthesize delegate = delegate_;
+
+@synthesize restoredTransactions = restoredTransactions_;
+@synthesize verifiedTransactions = verifiedTransactions_;
+@synthesize invalidTransactions = invalidTransactions_;
+
+@synthesize successBlock = successBlock_;
+@synthesize failureBlock = failureBlock_;
+@synthesize verifyBlock = verifyBlock_;
+
+-(id) init {
+    if (self=[super init]) {
+        self.restoredTransactions = [NSMutableArray new];
+        self.verifiedTransactions = [NSMutableArray new];
+        self.invalidTransactions = [NSMutableArray new];
+    }
+    
+    return self;
+}
+
+-(void) restore {
+    [[SKPaymentQueue defaultQueue] addTransactionObserver:self];
+    [[SKPaymentQueue defaultQueue] restoreCompletedTransactions];
+}
+
+/*
+ AFAIK, there's no way for us to automatically know which transactions are from the restoreCompletedTransactions
+ request and which come from addPayment:, so we need to manually determine which transactions should be processed
+ by this handler. Therefore, we rely on the following assumptions:
+ 
+ * -addPayment: requests are coming only from DEStoreKitTransactionHandler objects
+ * -restoreCompletedTransaction requests are coming only from DEStoreKitRestorationHandler objects
+ * There is at any time at most one DEStoreKitRestorationHandler object requesting -restoreCompletedTransaction
+ 
+ Note that these requirements allow for simultaneous restoration and purchasing, but restrict the developer by
+ tying the code to more exclusively utilize DEStoreKitManager (i.e. no outside requests to the SKPaymentQueue).
+ */
+-(void) paymentQueue:(SKPaymentQueue *)queue updatedTransactions:(NSArray *)transactions {
+    for (SKPaymentTransaction *transaction in transactions) {
+        switch (transaction.transactionState) {
+            case SKPaymentTransactionStatePurchased:
+            case SKPaymentTransactionStateRestored:
+                [self.restoredTransactions addObject:transaction];
+                break;
+            default:
+                [self finishTransaction:transaction
+                          wasSuccessful:NO];
+                break;
+        }
+        
+    }
+}
+
+
+-(void) paymentQueueRestoreCompletedTransactionsFinished:(SKPaymentQueue *)queue {
+    
+    if (self.delegate && [self.delegate respondsToSelector:@selector(restorationNeedsVerification:)]) {
+        [self.delegate restorationNeedsVerification:self.restoredTransactions];
+    }
+    else if (self.verifyBlock) {
+        self.verifyBlock(self.restoredTransactions);
+    }
+    else {
+        for (SKPaymentTransaction *transaction in self.restoredTransactions) {
+            [self finishTransaction:transaction wasSuccessful:YES];
+        }
+    }
+    [self transactionsDidFinish];
+}
+
+-(void) finishTransaction: (SKPaymentTransaction *)transaction
+            wasSuccessful: (BOOL)wasSuccessful {
+    if (transaction != nil) {
+        if (wasSuccessful) {
+            [self.verifiedTransactions addObject:transaction];
+        }
+        else {
+            [self.invalidTransactions addObject:transaction];
+        }
+        
+        [[SKPaymentQueue defaultQueue] finishTransaction:transaction];
+    }
+}
+
+-(void) transactionsDidFinish {
+    if (self.delegate && [self.delegate respondsToSelector:@selector(restorationSucceeded:invalidTransactions:)]) {
+        [self.delegate restorationSucceeded:self.verifiedTransactions invalidTransactions:self.invalidTransactions];
+    }
+    else if (self.successBlock) {
+        self.successBlock(self.verifiedTransactions, self.invalidTransactions);
+    }
+    
+    [[SKPaymentQueue defaultQueue] removeTransactionObserver:self];
+    [self.storeKitManager restorationHandlerDidFinish:self];
+}
+
+-(void) paymentQueue:(SKPaymentQueue *)queue restoreCompletedTransactionsFailedWithError:(NSError *)error {
+    if (self.delegate && [self.delegate respondsToSelector:@selector(restorationFailed:)]) {
+        [self.delegate restorationFailed:error];
+    }
+    else if (self.failureBlock) {
+        self.failureBlock(error);
+    }
+    
+    [[SKPaymentQueue defaultQueue] removeTransactionObserver:self];
+    [self.storeKitManager restorationHandlerDidFinish:self];
+}
+
+-(void) transaction: (SKPaymentTransaction *)transaction
+          didVerify: (BOOL)isValid {
+    [self finishTransaction:transaction wasSuccessful:isValid];
+}
+
+@end
 
 
 
@@ -423,17 +519,7 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
 @synthesize cachedProducts = cachedProducts_;
 @synthesize productsFetchHandlers = productsFetchHandlers_;
 @synthesize transactionHandlers = transactionHandlers_;
-
-
-#pragma mark - Dealloc
-
--(void) dealloc {
-    [cachedProducts_ release], cachedProducts_ = nil;
-    self.productsFetchHandlers = nil;
-    self.transactionHandlers = nil;
-
-    [super dealloc];
-}
+@synthesize restorationHandler = restorationHandler_;
 
 
 #pragma mark - Static method
@@ -453,10 +539,10 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
 
 -(id) init {
     if (self=[super init]) {
-        cachedProducts_ = [NSSet new];
+        cachedProducts_ = [NSArray new];
 
-        self.productsFetchHandlers = [NSMutableSet set];
-        self.transactionHandlers = [NSMutableSet set];
+        self.productsFetchHandlers = [NSMutableArray new];
+        self.transactionHandlers = [NSMutableArray new];
     }
 
     return self;
@@ -481,27 +567,22 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
     return nil;
 }
 
--(void) addProductsToCache:(NSSet *)products {
-    NSSet *newCache = [self.cachedProducts setByAddingObjectsFromSet:products];
-    [cachedProducts_ release];
-    cachedProducts_ = [newCache retain];
+-(void) addProductsToCache:(NSArray *)products {
+    cachedProducts_ = products;
 }
 
--(void) removeProductsFromCache:(NSSet *)products {
-    NSMutableSet *mutableCache = [NSMutableSet setWithSet:cachedProducts_];
+-(void) removeProductsFromCache:(NSArray *)products {
+    NSMutableArray *mutableCache = [cachedProducts_ mutableCopy];
     for (id product in products) {
         [mutableCache removeObject:product];
     }
 
-    NSSet *newCache = [NSSet setWithSet:mutableCache];
-    [cachedProducts_ release];
-    cachedProducts_ = [newCache retain];
+    NSArray *newCache = [mutableCache copy];
+    cachedProducts_ = newCache;
 }
 
 -(void) removeAllProductsFromCache {
-    NSSet *newCache = [NSSet set];
-    [cachedProducts_ release];
-    cachedProducts_ = [newCache retain];
+    cachedProducts_ = [NSArray new];
 }
 
 
@@ -516,19 +597,23 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
 }
 
 
+-(void) restorationHandlerDidFinish:(DEStoreKitRestorationHandler *)handler {
+    self.restorationHandler = nil;
+}
+
 #pragma mark - Fetch Products
 
--(void) fetchProductsWithIdentifiers: (NSSet *)productIdentifiers
+-(void) fetchProductsWithIdentifiers: (NSArray *)productIdentifiers
                             delegate: (id<DEStoreKitManagerDelegate>) delegate {
     [self fetchProductsWithIdentifiers: productIdentifiers
                               delegate: delegate
                            cacheResult: YES];
 }
 
--(void) fetchProductsWithIdentifiers: (NSSet *)productIdentifiers
+-(void) fetchProductsWithIdentifiers: (NSArray *)productIdentifiers
                             delegate: (id<DEStoreKitManagerDelegate>) delegate
                          cacheResult: (BOOL)shouldCache {
-    DEStoreKitProductsFetchHandler *handler = [[DEStoreKitProductsFetchHandler new] autorelease];
+    DEStoreKitProductsFetchHandler *handler = [DEStoreKitProductsFetchHandler new] ;
     handler.storeKitManager = self;
     handler.shouldCache = shouldCache;
     handler.productIdentifiers = productIdentifiers;
@@ -539,22 +624,20 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
     [handler fetch];
 }
 
-#ifdef __BLOCKS__
-
--(void) fetchProductsWithIdentifiers: (NSSet *)productIdentifiers
-                           onSuccess: (void (^)(NSArray *products, NSArray *invalidIdentifiers))success
-                           onFailure: (void (^)(NSError *error))failure {
+-(void) fetchProductsWithIdentifiers: (NSArray *)productIdentifiers
+                           onSuccess: (DEStoreKitProductsFetchSuccessBlock)success
+                           onFailure: (DEStoreKitErrorBlock)failure {
     [self fetchProductsWithIdentifiers: productIdentifiers
                              onSuccess: success
                              onFailure: failure
                            cacheResult: YES];
 }
 
--(void) fetchProductsWithIdentifiers: (NSSet *)productIdentifiers
-                           onSuccess: (void (^)(NSArray *products, NSArray *invalidIdentifiers))success
-                           onFailure: (void (^)(NSError *error))failure
+-(void) fetchProductsWithIdentifiers: (NSArray *)productIdentifiers
+                           onSuccess: (DEStoreKitProductsFetchSuccessBlock)success
+                           onFailure: (DEStoreKitErrorBlock)failure
                          cacheResult: (BOOL)shouldCache {
-    DEStoreKitProductsFetchHandler *handler = [[DEStoreKitProductsFetchHandler new] autorelease];
+    DEStoreKitProductsFetchHandler *handler = [DEStoreKitProductsFetchHandler new];
 
     handler.storeKitManager = self;
     handler.shouldCache = shouldCache;
@@ -566,8 +649,6 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
 
     [handler fetch];
 }
-
-#endif
 
 
 #pragma mark - Transaction
@@ -588,7 +669,7 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
 
 -(void) purchaseProduct: (SKProduct *)product
                delegate: (id<DEStoreKitManagerDelegate>) delegate {
-    DEStoreKitTransactionHandler *handler = [[DEStoreKitTransactionHandler new] autorelease];
+    DEStoreKitTransactionHandler *handler = [DEStoreKitTransactionHandler new];
 
     handler.storeKitManager = self;
     handler.product = product;
@@ -599,14 +680,12 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
     [handler purchase];
 }
 
-#ifdef __BLOCKS__
-
 -(BOOL) purchaseProductWithIdentifier: (NSString *)productIdentifier
-                            onSuccess: (void (^)(SKPaymentTransaction *transaction))success
-                            onRestore: (void (^)(SKPaymentTransaction *transaction))restore
-                            onFailure: (void (^)(SKPaymentTransaction *transaction))failure
-                             onCancel: (void (^)(SKPaymentTransaction *transaction))cancel
-                             onVerify: (void (^)(SKPaymentTransaction *transaction))verify {
+                            onSuccess: (DEStoreKitTransactionBlock)success
+                            onRestore: (DEStoreKitTransactionBlock)restore
+                            onFailure: (DEStoreKitTransactionBlock)failure
+                             onCancel: (DEStoreKitTransactionBlock)cancel
+                             onVerify: (DEStoreKitTransactionBlock)verify {
     for (SKProduct *product in self.cachedProducts) {
         if ([product.productIdentifier isEqualToString:productIdentifier]) {
             [self purchaseProduct: product
@@ -624,12 +703,12 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
 }
 
 -(void) purchaseProduct: (SKProduct *)product
-              onSuccess: (void (^)(SKPaymentTransaction *transaction))success
-              onRestore: (void (^)(SKPaymentTransaction *transaction))restore
-              onFailure: (void (^)(SKPaymentTransaction *transaction))failure
-               onCancel: (void (^)(SKPaymentTransaction *transaction))cancel
-               onVerify: (void (^)(SKPaymentTransaction *transaction))verify {
-    DEStoreKitTransactionHandler *handler = [[DEStoreKitTransactionHandler new] autorelease];
+              onSuccess: (DEStoreKitTransactionBlock)success
+              onRestore: (DEStoreKitTransactionBlock)restore
+              onFailure: (DEStoreKitTransactionBlock)failure
+               onCancel: (DEStoreKitTransactionBlock)cancel
+               onVerify: (DEStoreKitTransactionBlock)verify {
+    DEStoreKitTransactionHandler *handler = [DEStoreKitTransactionHandler new];
 
     handler.storeKitManager = self;
     handler.product = product;
@@ -644,7 +723,40 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
     [handler purchase];
 }
 
-#endif
+-(BOOL) restorePreviousPurchasesWithDelegate: (id<DEStoreKitManagerDelegate>)delegate {
+    if (self.restorationHandler) {
+        return NO;
+    }
+    
+    self.restorationHandler = [DEStoreKitRestorationHandler new];
+    
+    self.restorationHandler.storeKitManager = self;
+    self.restorationHandler.delegate = delegate;
+    
+    [self.restorationHandler restore];
+    
+    return YES;
+}
+
+
+-(BOOL) restorePreviousPurchasesOnSuccess: (void (^)(NSArray *verifiedTransactions, NSArray *failedTransactions))success
+                                onFailure: (void (^)(NSError *error))failure
+                                 onVerify: (void (^)(NSArray *transactions))verify {
+    if (self.restorationHandler) {
+        return NO;
+    }
+    
+    self.restorationHandler = [DEStoreKitRestorationHandler new];
+    
+    self.restorationHandler.storeKitManager = self;
+    self.restorationHandler.successBlock = success;
+    self.restorationHandler.failureBlock = failure;
+    self.restorationHandler.verifyBlock = verify;
+    
+    [self.restorationHandler restore];
+    
+    return YES;
+}
 
 -(void) transaction: (SKPaymentTransaction *)transaction
           didVerify: (BOOL)isValid {
@@ -652,7 +764,16 @@ typedef void (^DEStoreKitTransactionHandlerVerifyBlock)(SKPaymentTransaction *tr
         if ([handler.payment isEqual:transaction.payment]) {
             [handler transaction: transaction
                      wasVerified: isValid];
-            break;
+            return;
+        }
+    }
+    if (self.restorationHandler) {
+        for (SKPaymentTransaction *restoredTransaction in self.restorationHandler.restoredTransactions) {
+            if ([restoredTransaction isEqual:transaction]) {
+                [self.restorationHandler transaction: transaction
+                                           didVerify: isValid];
+                return;
+            }
         }
     }
 }

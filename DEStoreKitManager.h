@@ -29,6 +29,13 @@
 
 #import <StoreKit/StoreKit.h>
 
+typedef void (^DEStoreKitProductsFetchSuccessBlock)(NSArray *products, NSArray *invalidIdentifiers);
+typedef void (^DEStoreKitErrorBlock)(NSError *error);
+typedef void (^DEStoreKitTransactionBlock)(SKPaymentTransaction *transaction);
+typedef void (^DEStoreKitTransactionsRestorationCompletedBlock)(NSArray *restoredTransactions, NSArray *invalidTransactions);
+typedef void (^DEStoreKitTransactionsVerifyingBlock)(NSArray *transactions);
+
+
 
 @interface SKProduct (DEStoreKitManager)
 
@@ -82,13 +89,25 @@
  */
 -(void) transactionNeedsVerification:(SKPaymentTransaction *)transaction;
 
+-(void) restorationSucceeded:(NSArray *)restoredTransactions invalidTransactions:(NSArray *)invalidTransactions;
+
+-(void) restorationFailed:(NSError *)error;
+
+/*
+ Provides a delegate an opportunity to verify the receipts for restored transactions.
+ 
+ As with transactionNeedsVerification:, the delegate is responsible for calling -transaction:didVerify: in
+ DEStoreKitManager once validity has been determined for each transaction to continue the restoration procedure.
+ */
+-(void) restorationNeedsVerification:(NSArray *)transactions;
+
 @end
 
 
 
 @interface DEStoreKitManager : NSObject
 
-@property (nonatomic, readonly) NSSet *cachedProducts;
+@property (nonatomic, readonly) NSArray *cachedProducts;
 
 +(id)sharedManager;
 
@@ -97,35 +116,31 @@
 // returns nil if product not found
 -(SKProduct *)cachedProductWithIdentifier:(NSString *)productIdentifier;
 
--(void) removeProductsFromCache:(NSSet *)products;
+-(void) removeProductsFromCache:(NSArray *)products;
 -(void) removeAllProductsFromCache;
 
 // This will cache the products in DEStoreKitManager for later use in memory. If you do not want
 // the products to be cached, then use fetchProductsWithIdentifiers:delegate:cacheResult: and pass NO
 // for the last parameter.
--(void) fetchProductsWithIdentifiers: (NSSet *)productIdentifiers
+-(void) fetchProductsWithIdentifiers: (NSArray *)productIdentifiers
                             delegate: (id<DEStoreKitManagerDelegate>) delegate;
 
--(void) fetchProductsWithIdentifiers: (NSSet *)productIdentifiers
+-(void) fetchProductsWithIdentifiers: (NSArray *)productIdentifiers
                             delegate: (id<DEStoreKitManagerDelegate>) delegate
                          cacheResult: (BOOL)shouldCache;
-
-#ifdef __BLOCKS__
 
 
 /*
  Use these if you'd prefer not to use the delegation pattern
  */
--(void) fetchProductsWithIdentifiers: (NSSet *)productIdentifiers
-                           onSuccess: (void (^)(NSArray *products, NSArray *invalidIdentifiers))success
-                           onFailure: (void (^)(NSError *error))failure;
+-(void) fetchProductsWithIdentifiers: (NSArray *)productIdentifiers
+                           onSuccess: (DEStoreKitProductsFetchSuccessBlock)success
+                           onFailure: (DEStoreKitErrorBlock)failure;
 
--(void) fetchProductsWithIdentifiers: (NSSet *)productIdentifiers
-                           onSuccess: (void (^)(NSArray *products, NSArray *invalidIdentifiers))success
-                           onFailure: (void (^)(NSError *error))failure
+-(void) fetchProductsWithIdentifiers: (NSArray *)productIdentifiers
+                           onSuccess: (DEStoreKitProductsFetchSuccessBlock)success
+                           onFailure: (DEStoreKitErrorBlock)failure
                          cacheResult: (BOOL)shouldCache;
-
-#endif
 
 
 /*
@@ -145,26 +160,55 @@
 -(void) purchaseProduct: (SKProduct *)product
                delegate: (id<DEStoreKitManagerDelegate>) delegate;
 
-#ifdef __BLOCKS__
-
 /*
  Use these if you'd prefer not to use the delegation pattern.
  */
 -(BOOL) purchaseProductWithIdentifier: (NSString *)productIdentifier
-                            onSuccess: (void (^)(SKPaymentTransaction *transaction))success
-                            onRestore: (void (^)(SKPaymentTransaction *transaction))restore
-                            onFailure: (void (^)(SKPaymentTransaction *transaction))failure
-                             onCancel: (void (^)(SKPaymentTransaction *transaction))cancel
-                             onVerify: (void (^)(SKPaymentTransaction *transaction))verify;
+                            onSuccess: (DEStoreKitTransactionBlock)success
+                            onRestore: (DEStoreKitTransactionBlock)restore
+                            onFailure: (DEStoreKitTransactionBlock)failure
+                             onCancel: (DEStoreKitTransactionBlock)cancel
+                             onVerify: (DEStoreKitTransactionBlock)verify;
 
 -(void) purchaseProduct: (SKProduct *)product
-              onSuccess: (void (^)(SKPaymentTransaction *transaction))success
-              onRestore: (void (^)(SKPaymentTransaction *transaction))restore
-              onFailure: (void (^)(SKPaymentTransaction *transaction))failure
-               onCancel: (void (^)(SKPaymentTransaction *transaction))cancel
-               onVerify: (void (^)(SKPaymentTransaction *transaction))verify;
+              onSuccess: (DEStoreKitTransactionBlock)success
+              onRestore: (DEStoreKitTransactionBlock)restore
+              onFailure: (DEStoreKitTransactionBlock)failure
+               onCancel: (DEStoreKitTransactionBlock)cancel
+               onVerify: (DEStoreKitTransactionBlock)verify;
 
-#endif
+/*
+ Returns YES if there are not other restoration processes currently occuring, meaning that the
+ restoration process will begin. Returns NO otherwise, meaning that the current restoration request
+ will be ignored.
+ 
+ Due to the nature of the SKPaymentTransactionObserver/SKPaymentQueue implementation, DEStoreKitManager
+ can only ever have one restoration occurring at any time.
+ 
+ If successful, calls restorationSucceeded:invalidTransactions:. Otherwise, calls restorationFailed:.
+ 
+ If the delegate does not implement restorationNeedsVerification:, then restorationSucceeded...
+ will be called instead if available.
+ */
+-(BOOL) restorePreviousPurchasesWithDelegate: (id<DEStoreKitManagerDelegate>)delegate;
+
+/*
+ Returns YES if there are not other restoration processes currently occuring, meaning that the
+ restoration process will begin. Returns NO otherwise, meaning that the current restoration request
+ will be ignored.
+ 
+ Due to the nature of the SKPaymentTransactionObserver/SKPaymentQueue implementation, DEStoreKitManager
+ can only ever have one restoration occurring at any time.
+ 
+ If nil is passed in for the verify block, verification will not occur and the success block
+ will instead be called (if provided).
+ 
+ The success block receives to sets: restoredTransactions, which is a set of valid (verified) transactions, and
+ invalidTransactions, which is a set of transactions whose receipts did not pass validation.
+ */
+-(BOOL) restorePreviousPurchasesOnSuccess: (DEStoreKitTransactionsRestorationCompletedBlock)success
+                                onFailure: (DEStoreKitErrorBlock)failure
+                                 onVerify: (DEStoreKitTransactionsVerifyingBlock)verify;
 
 
 /*
@@ -178,6 +222,5 @@
  */
 -(void) transaction: (SKPaymentTransaction *)transaction
           didVerify: (BOOL)isValid;
-
 
 @end
